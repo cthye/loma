@@ -555,6 +555,11 @@ def test_atomic_add():
         _, lib = compiler.compile(f.read(),
                                   target = 'c',
                                   output_filename = '_code/atomic_add.so')
+
+    # c_func = getattr(lib, 'my_atomic_add')
+    # c_func.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float), ctypes.c_int]
+    # c_func.restype = None
+
     np.random.seed(seed=1234)
     n = 10000
     x = np.random.random(n).astype('f') / n
@@ -567,6 +572,7 @@ def test_atomic_add():
         _, lib = compiler.compile(f.read(),
                                   target = 'ispc',
                                   output_filename = '_code/atomic_add.so')
+
     z = ctypes.c_float(0)
     lib.my_atomic_add(ctypes_x, ctypes.byref(z), n)
     assert abs(z.value - np.sum(x)) < 1e-3
@@ -727,6 +733,7 @@ if __name__ == '__main__':
     test_pass_by_ref_lhs_struct()
     test_pass_by_ref_array()
     test_call_stmt()
+    # # ?? macOS M1 sucks in these simd cases
     test_parallel_add()
     test_simd_local_func()
     test_atomic_add()

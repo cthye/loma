@@ -232,6 +232,9 @@ static float cl_atomic_add(volatile __global float *p, float val) {
             c_func = getattr(lib, f.id)
             c_func.argtypes = \
                 [loma_to_ctypes_type(arg, ctypes_structs) for arg in f.args]
+            # # ??? only process SIMD functions
+            if f.is_simd:
+                c_func.argtypes = c_func.argtypes.append(ctypes.c_int)
             c_func.restype = loma_to_ctypes_type(f.ret_type, ctypes_structs)
 
     return ctypes_structs, lib
