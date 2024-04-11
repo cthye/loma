@@ -160,6 +160,7 @@ class TypeInferencer(irmutator.IRMutator):
         return new_ifelse
 
     def mutate_var(self, var):
+        # print("[mutate_var in type infer]")
         new_var = loma_ir.Var(\
             var.id,
             lineno = var.lineno,
