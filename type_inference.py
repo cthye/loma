@@ -234,6 +234,7 @@ class TypeInferencer(irmutator.IRMutator):
         elif left.t == loma_ir.Float() and right.t == loma_ir.Float():
             inferred_type = loma_ir.Float()
         else:
+
             raise error.BinaryOpTypeMismatch(expr)
 
         return loma_ir.BinaryOp(\
@@ -342,4 +343,5 @@ def check_and_infer_types(structs : dict[str, loma_ir.Struct],
                           funcs : dict[str, loma_ir.func]):
     for id, f in funcs.items():
         ti = TypeInferencer(structs, diff_structs, funcs)
+        # print(funcs)
         funcs[id] = ti.mutate_function(f)

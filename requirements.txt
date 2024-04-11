@@ -4,7 +4,3 @@ gpuctypes==0.3.0
 matplotlib==3.5.2
 numpy==1.23.5
 yapf==0.40.1
-<<<<<<< HEAD
-# python>=3.10.14 # comment this out on MacOS platform
-=======
->>>>>>> ccdef68ee3bd2e81001b4e96b840dbbe8c194cb0
