@@ -79,31 +79,36 @@ def forward_diff(
             # return super().mutate_return(node)
             # return loma_ir.Return(\
             # self.mutate_expr(node.val), lineno = node.lineno)
-            
+
             # print("[mutate_return 1]", node)
 
             # * handle case: return x[i]
             # !feeling wrong with this..
-            if isinstance(node.val, loma_ir.ArrayAccess):
+            # print(f">>>> {node.val}")
+
+            if isinstance(node.val, loma_ir.ArrayAccess) or isinstance(node.val, loma_ir.StructAccess) :
                 #! trigger mutate_array_access
-                new_arr = self.mutate_expr(node.val) 
-                print(f"arr comp {new_arr}")
-                print(f"arr comp {node.val}")
+                new_val = self.mutate_expr(node.val)
+
+                # print(f"[mutate_return] {new_val}")
 
                 ret_expr = [
                     loma_ir.StructAccess(
-                        new_arr,
+                        new_val,
                         "val",
                     ),
-                    loma_ir.StructAccess(new_arr, "dval"),
+                    loma_ir.StructAccess(new_val, "dval"),
                 ]
                 # print("[mutate_return 0]", ret_expr)
 
                 ret_expr = loma_ir.Call("make__dfloat", ret_expr)
                 return loma_ir.Return(ret_expr, lineno=node.lineno)
 
+
             ret_expr = self.mutate_expr(node.val)
             if isinstance(node.val.t, loma_ir.Int):
+                ret_expr = ret_expr[0]
+            elif isinstance(node.val.t, loma_ir.Struct):
                 ret_expr = ret_expr[0]
             else:
                 ret_expr = loma_ir.Call("make__dfloat", ret_expr)
@@ -115,6 +120,8 @@ def forward_diff(
             if node.val is not None:
                 val_expr = self.mutate_expr(node.val)
                 if isinstance(node.val.t, loma_ir.Int):
+                    val_expr = val_expr[0]
+                elif isinstance(node.val.t, loma_ir.Struct):
                     val_expr = val_expr[0]
                 else:
                     val_expr = loma_ir.Call("make__dfloat", val_expr)
@@ -144,10 +151,31 @@ def forward_diff(
                     node.target.lineno,
                     target_type,
                 )
+            elif isinstance(node.target, loma_ir.StructAccess):
+                # print(f"mutate_assign 0 {node.target}")
+                target_expr = self.mutate_expr(node.target)
+                
+
+            else:
+                assert (
+                        False
+                    ), f"forward mode mutate_assign error: unhandled node.target {node.target}"
+
 
             assign_expr = self.mutate_expr(node.val)
             if isinstance(node.target.t, loma_ir.Int):
                 assign_expr = assign_expr[0]
+            elif isinstance(node.target.t, loma_ir.Struct):
+                assign_expr = assign_expr[0]
+            elif isinstance(assign_expr, loma_ir.StructAccess):
+                struct_tup = [
+                    loma_ir.StructAccess(
+                        assign_expr,
+                        "val",
+                    ),
+                    loma_ir.StructAccess(assign_expr, "dval"),
+                ]
+                assign_expr = loma_ir.Call("make__dfloat", struct_tup)
             else:
                 assign_expr = loma_ir.Call("make__dfloat", assign_expr)
 
@@ -181,11 +209,14 @@ def forward_diff(
         def mutate_var(self, node):
             # HW1: TODO
             # return super().mutate_var(node)
-            
+
             # return only one var is causing too much troubles..
-            # returning a zero if it's int
+            # returning a zero if it's int or struct
             if isinstance(node.t, loma_ir.Int):
                 return node, loma_ir.ConstInt(0)
+            if isinstance(node.t, loma_ir.Struct):
+                return node, loma_ir.ConstInt(0)
+
             return loma_ir.StructAccess(node, "val"), loma_ir.StructAccess(node, "dval")
 
         def mutate_array_access(self, node):
@@ -195,14 +226,20 @@ def forward_diff(
             arr_t = autodiff.type_to_diff_type(diff_structs, node.array.t)
             idx_t = autodiff.type_to_diff_type(diff_structs, node.index.t)
 
-            new_arr = loma_ir.Var(id=node.array.id, lineno=node.array.lineno, t=arr_t)
-            
-            print(f"mutate_array_access0] {self.mutate_expr(node.index)}")
+            # print("debug", node)
+            # print("debug", node.array)
+            # print("debug 0", self.mutate_expr(node.array))
+            if isinstance(node.array, loma_ir.Var):
+                new_arr = loma_ir.Var(id=node.array.id, lineno=node.array.lineno, t=arr_t)
+            else:
+                new_arr = self.mutate_expr(node.array)
+
+            # print(f"mutate_array_access0] {self.mutate_expr(node.index)}")
             # *index has two types: int or expr
             # for int, just use it as index
             # for expr, using mutate_expr
             new_idx = self.mutate_expr(node.index)
-            if not isinstance(new_idx, loma_ir.expr):
+            if not isinstance(new_idx, loma_ir.expr): # index is Int
                 new_idx = new_idx[0]
             print(f"mutate_array_access] {new_idx} vs {node.index}")
 
@@ -219,13 +256,44 @@ def forward_diff(
 
         def mutate_struct_access(self, node):
             # HW1: TODO
-            return super().mutate_struct_access(node)
+            # return super().mutate_struct_access(node)
 
-        def mutate_add(self, node):
-            print("<<<<<")
+            print(f"[mutate_struct_access] 0: {node}")
+            print(f"[mutate_struct_access] 1: {node.struct}")
 
-            # HW1: TODO
-            # return super().mutate_add(node)
+            # construct a new struct
+            old_struct = node.struct
+            
+            if not isinstance(old_struct, loma_ir.Var): # StructAccess or ArrayAccess
+                new_struct = self.mutate_expr(old_struct)
+            else: # struct = Var
+                old_struct_type = old_struct.t 
+                new_struct_type = loma_ir.Struct(
+                    id= old_struct_type.id,
+                    members=[loma_ir.MemberDef(
+                        member.id, autodiff.type_to_diff_type(diff_structs, member.t)
+                    )
+                    for member in old_struct_type.members],
+                    lineno=old_struct_type.lineno)
+
+                new_struct = loma_ir.Var(
+                    id=old_struct.id, t=new_struct_type, lineno=old_struct.lineno
+                )
+
+            # print(f"[mutate_struct_access] 2: {new_struct}")
+            # print(f"debug: {node.struct}")
+
+            return loma_ir.StructAccess(
+                new_struct,
+                node.member_id,
+                lineno=node.lineno,
+                t=node.t,
+            )
+
+        def binary_op_helper(self, node):
+            """
+            helper function, return left_val, left_dval, right_val, right_dval
+            """
             if isinstance(node.left, loma_ir.ArrayAccess):
                 new_arr = self.mutate_expr(node.left)
                 left_val = loma_ir.StructAccess(
@@ -234,6 +302,16 @@ def forward_diff(
                 )
                 left_dval = loma_ir.StructAccess(
                     new_arr,
+                    "dval",
+                )
+            elif isinstance(node.left, loma_ir.StructAccess):
+                new_struct = self.mutate_expr(node.left)
+                left_val = loma_ir.StructAccess(
+                    new_struct,
+                    "val",
+                )
+                left_dval = loma_ir.StructAccess(
+                    new_struct,
                     "dval",
                 )
             else:
@@ -251,10 +329,27 @@ def forward_diff(
                     new_arr,
                     "dval",
                 )
+            elif isinstance(node.right, loma_ir.StructAccess):
+                #todo: combine struc
+                new_struct = self.mutate_expr(node.right)
+                right_val = loma_ir.StructAccess(
+                    new_struct,
+                    "val",
+                )
+                right_dval = loma_ir.StructAccess(
+                    new_struct,
+                    "dval",
+                )
             else:
                 right_expr = self.mutate_expr(node.right)
                 right_val = right_expr[0]
                 right_dval = right_expr[1]
+            return left_val, left_dval, right_val, right_dval
+
+        def mutate_add(self, node):
+            # HW1: TODO
+            # return super().mutate_add(node)
+            left_val, left_dval, right_val, right_dval =  self.binary_op_helper(node)
 
             val = loma_ir.BinaryOp(
                 loma_ir.Add(), left_val, right_val, lineno=node.lineno, t=node.t
@@ -270,35 +365,7 @@ def forward_diff(
             # HW1: TODO
             # return super().mutate_sub(node)
 
-            if isinstance(node.left, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.left)
-                left_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                left_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                left_expr = self.mutate_expr(node.left)
-                left_val = left_expr[0]
-                left_dval = left_expr[1]
-
-            if isinstance(node.right, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.right)
-                right_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                right_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                right_expr = self.mutate_expr(node.right)
-                right_val = right_expr[0]
-                right_dval = right_expr[1]
+            left_val, left_dval, right_val, right_dval =  self.binary_op_helper(node)
 
             val = loma_ir.BinaryOp(
                 loma_ir.Sub(), left_val, right_val, lineno=node.lineno, t=node.t
@@ -313,35 +380,7 @@ def forward_diff(
         def mutate_mul(self, node):
             # HW1: TODO
             # return super().mutate_mul(node)
-            if isinstance(node.left, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.left)
-                left_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                left_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                left_expr = self.mutate_expr(node.left)
-                left_val = left_expr[0]
-                left_dval = left_expr[1]
-
-            if isinstance(node.right, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.right)
-                right_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                right_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                right_expr = self.mutate_expr(node.right)
-                right_val = right_expr[0]
-                right_dval = right_expr[1]
+            left_val, left_dval, right_val, right_dval =  self.binary_op_helper(node)
 
             val = loma_ir.BinaryOp(
                 loma_ir.Mul(), left_val, right_val, lineno=node.lineno, t=node.t
@@ -364,35 +403,8 @@ def forward_diff(
         def mutate_div(self, node):
             # HW1: TODO
             # return super().mutate_div(node)
-            if isinstance(node.left, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.left)
-                left_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                left_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                left_expr = self.mutate_expr(node.left)
-                left_val = left_expr[0]
-                left_dval = left_expr[1]
-
-            if isinstance(node.right, loma_ir.ArrayAccess):
-                new_arr = self.mutate_expr(node.right)
-                right_val = loma_ir.StructAccess(
-                    new_arr,
-                    "val",
-                )
-                right_dval = loma_ir.StructAccess(
-                    new_arr,
-                    "dval",
-                )
-            else:
-                right_expr = self.mutate_expr(node.right)
-                right_val = right_expr[0]
-                right_dval = right_expr[1]
+            
+            left_val, left_dval, right_val, right_dval =  self.binary_op_helper(node)
 
             val = loma_ir.BinaryOp(
                 loma_ir.Div(), left_val, right_val, lineno=node.lineno, t=node.t
@@ -460,6 +472,21 @@ def forward_diff(
             # todo
             for arg in node.args:
                 if isinstance(arg, loma_ir.ArrayAccess):
+                    new_arg = self.mutate_expr(arg)
+
+                    arg_vals.append(
+                        loma_ir.StructAccess(
+                            new_arg,
+                            "val",
+                        )
+                    )
+                    arg_dvals.append(
+                        loma_ir.StructAccess(
+                            new_arg,
+                            "dval",
+                        )
+                    )
+                elif isinstance(arg, loma_ir.StructAccess):
                     new_arg = self.mutate_expr(arg)
 
                     arg_vals.append(
@@ -607,8 +634,6 @@ def forward_diff(
                 # case "int2float":
                 #     dval = loma_ir.ConstInt(0)
                 case "float2int":
-                    # todo?
-                    print(">>>>>>>>")
                     dval = loma_ir.ConstInt(0)
                 case _:
                     assert (
