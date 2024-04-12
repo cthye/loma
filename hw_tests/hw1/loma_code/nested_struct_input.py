@@ -11,5 +11,8 @@ def nested_struct_input(foo : In[Foo]) -> float:
     b.z = 5
     b.w = 3
     return (foo.x + foo.y.z + foo.y.w + b.z) * b.w
+    # return foo.y.w
+    # return foo.x 
+
 
 d_nested_struct_input = fwd_diff(nested_struct_input)
