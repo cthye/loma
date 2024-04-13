@@ -82,9 +82,6 @@ class Homework1Test(unittest.TestCase):
         x = _dfloat(5.0, 0.5)
         y = _dfloat(6.0, 1.5)
         out_div = lib.d_divide(x, y)
-        # print("=================")
-        # print(out_div.dval)
-        # print(((x.dval * y.val - x.val * y.dval)/(y.val * y.val)))
 
         assert abs(out_div.val - (x.val/y.val)) < epsilon and \
                abs(out_div.dval - ((x.dval * y.val - x.val * y.dval)/(y.val * y.val))) < epsilon
@@ -337,12 +334,6 @@ class Homework1Test(unittest.TestCase):
         z11_dval= z4_dval + z5_dval + z6_dval + z7_dval + z8_dval + z9_dval + z10_dval
 
         out = lib.d_array_input_complex(x)
-
-        # print(z9_dval)
-        # print(out.dval)
-
-        # print(z9_val)
-        # print(out.val)
 
         assert abs(out.val - z11_val) < epsilon and \
             abs(out.dval - z11_dval) < epsilon

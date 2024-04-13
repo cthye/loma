@@ -160,7 +160,6 @@ class TypeInferencer(irmutator.IRMutator):
         return new_ifelse
 
     def mutate_var(self, var):
-        # print("[mutate_var in type infer]")
         new_var = loma_ir.Var(\
             var.id,
             lineno = var.lineno,
@@ -344,5 +343,4 @@ def check_and_infer_types(structs : dict[str, loma_ir.Struct],
                           funcs : dict[str, loma_ir.func]):
     for id, f in funcs.items():
         ti = TypeInferencer(structs, diff_structs, funcs)
-        # print(funcs)
         funcs[id] = ti.mutate_function(f)
