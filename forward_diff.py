@@ -81,12 +81,13 @@ def forward_diff(
             # self.mutate_expr(node.val), lineno = node.lineno)
 
             ret_expr = self.mutate_expr(node.val)
+            # only return the tuple.first if the return type is Int or Struct
             if isinstance(node.val.t, loma_ir.Int):
                 ret_expr = ret_expr[0]
             elif isinstance(node.val.t, loma_ir.Struct):
                 ret_expr = ret_expr[0]
             else:
-                # * handle case: return x[i]
+                # * handle case: return x[i] / struct
                 if isinstance(ret_expr, loma_ir.ArrayAccess) or isinstance(
                     ret_expr, loma_ir.StructAccess
                 ):
@@ -102,8 +103,10 @@ def forward_diff(
             # return super().mutate_declare(node)
             if node.val is not None:
                 val_expr = self.mutate_expr(node.val)
+                
                 # mutate_var return a tuple
                 # but only need one if the left side (declared var) is Int / Struct type
+                # similar in mutate_return
                 if isinstance(node.val.t, loma_ir.Int):
                     val_expr = val_expr[0]
                 elif isinstance(node.val.t, loma_ir.Struct):
@@ -413,9 +416,8 @@ def forward_diff(
             # HW1: TODO
             # return super().mutate_call(node)
 
-            # * special case for input const_int call
-            # * Notice that the mutate_expr(int) is still itself
-            # * which is a int, not a tuple (don't do subscription)
+            # ! special case for call whose input is int
+            # just call the function with unmutated args
             if node.id == "int2float":
                 val = loma_ir.Call(node.id, node.args, lineno=node.lineno, t=node.t)
                 dval = loma_ir.ConstInt(0)

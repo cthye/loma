@@ -452,6 +452,7 @@ class Homework2Test(unittest.TestCase):
         # z1 = 6
         # return w * z1 * x + y - 1
         # -> y * x * 6 * x
+        # _dx += 2 * x * y * 6 
         assert abs(_dx.value - dout * (2 * 6 * 3 * x)) < epsilon
 
     def test_array_output(self):

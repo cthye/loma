@@ -234,7 +234,6 @@ class TypeInferencer(irmutator.IRMutator):
         elif left.t == loma_ir.Float() and right.t == loma_ir.Float():
             inferred_type = loma_ir.Float()
         else:
-
             raise error.BinaryOpTypeMismatch(expr)
 
         return loma_ir.BinaryOp(\
